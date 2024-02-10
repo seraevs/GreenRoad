@@ -1,73 +1,52 @@
 trigger:
-- main
+- main # Specifies the branch that will trigger the pipeline, in this case, the 'main' branch.
 
 pool:
-  vmImage: 'ubuntu-latest'
+  vmImage: 'ubuntu-latest' # Specifies the virtual machine image to use for the pipeline, here it's the latest Ubuntu.
 
 variables:
-  terraformPath: '$(System.DefaultWorkingDirectory)/terraform'
-  terraformBackendStorageAccount: 'seryev345'
-  terraformBackendContainer: 'tfstate'
-  terraformBackendKey: 'terraform.tfstate'
+  terraformPath: '$(Build.SourcesDirectory)/terraform' # Defines the path to Terraform scripts within the source directory.
+  kubernetesPath: '$(Build.SourcesDirectory)/kubernetes' # Defines the path to Kubernetes configuration files within the source directory.
+  terraformVersion: '3.1.x' # Specifies the version of .NET Core SDK to use, likely a typo and should be Terraform version.
 
 stages:
-- stage: TerraformProvisioning
+- stage: TerraformProvisioning # First stage for provisioning infrastructure using Terraform.
   jobs:
   - job: ProvisionEC2
-    displayName: 'Provision EC2 with Terraform'
+    displayName: 'Provision EC2 with Terraform' # Display name for the job in the UI.
     steps:
+    - checkout: self # Checks out the source code of the repository.
+
     - task: UseDotNet@2
-      displayName: 'Use .NET Core sdk'
+      displayName: 'Use .NET Core sdk' # Likely a typo, this step is supposed to set up the Terraform environment.
       inputs:
         packageType: 'sdk'
-        version: '3.1.x'
-
-    - checkout: self
+        version: '$(terraformVersion)'
 
     - script: |
         cd $(terraformPath)
-        terraform init -backend-config="storage_account_name=$(terraformBackendStorageAccount)" -backend-config="container_name=$(terraformBackendContainer)" -backend-config="key=$(terraformBackendKey)"
-        terraform apply -auto-approve
+        terraform init -reconfigure # Initializes Terraform, reconfiguring any backend.
+        terraform apply -auto-approve # Applies Terraform configurations without manual approval.
       displayName: 'Terraform Apply'
 
-- stage: KubernetesDeployment
-  dependsOn: TerraformProvisioning
+- stage: KubernetesDeployment # Second stage for deploying services using Kubernetes.
   jobs:
   - job: DeployServices
-    displayName: 'Deploy Containerized Services with Kubernetes'
+    displayName: 'Deploy Services with Kubernetes' # Display name for the job in the UI.
     steps:
+    - checkout: self # Checks out the source code of the repository.
+
     - task: UseDotNet@2
-      displayName: 'Use .NET Core sdk'
+      displayName: 'Use .NET Core sdk' # Again, likely a typo; this task might not be necessary for Kubernetes deployment.
       inputs:
         packageType: 'sdk'
-        version: '3.1.x'
-
-    - checkout: self
+        version: '$(terraformVersion)'
 
     - script: |
-        # Use kubectl to apply Kubernetes manifests for your web site and monitoring solution
-        # Update the paths based on your project structure
-        kubectl apply -f terraform/web-site-deployment.yaml
-        kubectl apply -f terraform/monitoring-solution-deployment.yaml
+        # Set up minikube
+        # Deploy Kubernetes manifests for web site and monitoring solution
+        cd $(kubernetesPath)
+        minikube start # Starts a minikube cluster.
+        kubectl apply -f web-site-deployment.yaml # Applies the Kubernetes manifest for the web site.
+        kubectl apply -f monitoring-solution-deployment.yaml # Applies the Kubernetes manifest for the monitoring solution.
       displayName: 'Deploy Services with Kubernetes'
-
-    # Add additional steps for testing, monitoring, etc.
-
-- stage: TerraformDestroy
-  dependsOn: KubernetesDeployment
-  jobs:
-  - job: DestroyEC2
-    displayName: 'Destroy EC2 with Terraform'
-    steps:
-    - task: UseDotNet@2
-      displayName: 'Use .NET Core sdk'
-      inputs:
-        packageType: 'sdk'
-        version: '3.1.x'
-
-    - checkout: self
-
-    - script: |
-        cd $(terraformPath)
-        terraform destroy -auto-approve
-      displayName: 'Terraform Destroy'
