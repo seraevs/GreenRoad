@@ -1,186 +1,70 @@
-## Azure DevOps CI/CD for EC2 Provisioning with Kubernetes
-## This project demonstrates an automatic CI/CD workflow using Azure DevOps for provisioning an EC2 instance and deploying containerized services with Kubernetes. 
-## The solution leverages Terraform for infrastructure provisioning and Kubernetes for orchestrating containerized web and monitoring services.
+## Azure Web Application and Monitoring Solution Deployment Pipeline
 
-## Overview
-The CI/CD pipeline automates the following tasks:
+    This README document provides a comprehensive guide on setting up and using a CI/CD pipeline for deploying a web application alongside a monitoring solution on Azure. 
+    The pipeline uses Terraform for infrastructure provisioning and Kubernetes for application deployment.
 
-    Provisioning an EC2 instance using Terraform.
-    Deploying an internet-facing containerized web site.
-    Deploying a containerized monitoring solution to monitor the web site using Kubernetes.
+# Overview
+    The pipeline is structured into two primary stages:
 
-    Path to the scripts:
-        azure-pipelines.yml
-        terraform/web-site-deployment.yaml
-        terraform/monitoring-solution-deployment.yaml
+        1) Terraform Provisioning: Automates the creation of Azure infrastructure required for the application and monitoring solution.
+        2) Kubernetes Deployment: Manages the deployment of the web application and Grafana (used for monitoring) on a Kubernetes cluster in Azure.
 
-## Table of Contents
-    Prerequisites
-    Azure DevOps Pipeline Configuration
-    Terraform Configuration
-    Kubernetes Configuration
-    Project Structure
-    Kubernetes Manifests
-    Azure DevOps Pipeline YAML
-    Usage
-    Contributing
-    License
-## Prerequisites
-    Before using this solution, i installed following prerequisites:
+# Prerequisites
+    Before you begin, ensure you have the following prerequisites in place:
 
-        Azure DevOps account.
-        Azure subscription.
-        Azure Service Connection in Azure DevOps for your Azure Subscription.
-        Terraform installed on machine or included in the pipeline.
-        Kubernetes configured for deploying services.
+        An Azure subscription with sufficient permissions to create and manage resources.
+        Azure CLI installed and configured for access to your Azure subscription.
+        A Kubernetes cluster running on Azure (AKS can be used for simplicity).
+        Terraform installed locally or in your CI/CD environment.
+        Access to a container registry (such as Azure Container Registry) if using custom container images for your web application or monitoring solution.
 
-## Azure DevOps Pipeline Configuration
-    ## Terraform Configuration
-        Created a Terraform script for provisioning an EC2 instance.
-        Configured Terraform backend settings for state storage.
+# Pipeline Stages and Scripts
+    Terraform Provisioning Stage
+    This stage sets up the necessary Azure infrastructure components using Terraform.
 
-## Kubernetes Configuration
-    Created Kubernetes manifests for the web site and monitoring solution.
-    Ensured Kubernetes is configured for deploying services.
+    Key Scripts and Files:
+        terraform/main.tf: Contains Terraform configurations for provisioning Azure resources such as virtual networks, subnets, and Kubernetes service principals.
+        Resources Provisioned:
+        Azure Resource Group: A container that holds related resources for an Azure solution.
+        Azure Virtual Network and Subnet: Networking infrastructure to provide isolation and routing for the AKS cluster.
+        Azure Kubernetes Service (AKS) Cluster: Managed Kubernetes service for deploying containerized applications.
+        Azure Role Assignments: Necessary permissions for the Kubernetes service principal to manage resources.
+     
+# Kubernetes Deployment Stage
+    This stage deploys the web application and the Grafana monitoring solution onto the 
+    Kubernetes cluster using Kubernetes manifests.
 
-## Project Structure
-    The project follows a structured layout. Key directories include:
+    Key Scripts and Files:
+        kubernetes/web-site-deployment.yaml: Kubernetes manifest for deploying the web application, typically using Nginx as a web server.
+        kubernetes/web-site-service.yaml: Kubernetes service to expose the web application externally.
+        kubernetes/monitoring-solution-deployment.yaml: Kubernetes manifest for deploying Grafana for monitoring purposes.
+        kubernetes/monitoring-solution-service.yaml: Kubernetes service to expose the Grafana dashboard externally.
 
-    azure-pipelines.yml:
+    Components Deployed:
+        Web Application: A scalable deployment managed by Kubernetes, accessible through a LoadBalancer service.
+        Grafana Dashboard: A deployment for the Grafana monitoring tool, also exposed through a LoadBalancer service for easy access.
 
-    trigger:
-        - main
+# Getting Started
+    1. Setup Azure Environment
+        Login to the Azure CLI and select your subscription.
+        Ensure your service principal has the necessary permissions for creating and managing resources.
+    2. Configure Terraform
+        Update the terraform/main.tf file with your specific Azure settings, such as the subscription ID, tenant ID, and service principal details.
+    3. Configure Kubernetes Manifests
+        Modify the Kubernetes deployment and service YAML files under the kubernetes/ directory to match your application and monitoring requirements.
+    4. Run the Pipeline
+        Commit your changes to trigger the pipeline automatically, or manually initiate the pipeline run through your CI/CD platform's dashboard.
+    5. Access the Deployed Services
+        Once the deployment is successful, use the Azure portal or kubectl to find the external IP addresses of the web application and Grafana dashboard services.
 
-        pool:
-        vmImage: 'ubuntu-latest'
+# Monitoring and Logging
+        Leverage Azure Monitor and Log Analytics to keep track of your deployments and to set up alerts for any potential issues.
+        Use Grafana to visualize metrics from your application and Kubernetes cluster for performance monitoring and troubleshooting.
+# Troubleshooting
+        Terraform Errors: Verify Azure service principal permissions and ensure all required fields in the Terraform configuration are correctly filled out.
+        Kubernetes Deployment Issues: Check the logs of Kubernetes pods and services. Use kubectl describe and kubectl logs commands for detailed diagnostics.
+        Service Access: If encounter issues accessing the web application or Grafana dashboard, 
+        verify the LoadBalancer services in Kubernetes and ensure your network security rules in Azure allow traffic to the designated ports.
 
-        variables:
-        terraformPath: '$(System.DefaultWorkingDirectory)/terraform'
-        terraformBackendStorageAccount: 'seryev345'
-        terraformBackendContainer: 'tfstate'
-        terraformBackendKey: 'terraform.tfstate'
-
-        stages:
-        - stage: TerraformProvisioning
-        jobs:
-        - job: ProvisionEC2
-            displayName: 'Provision EC2 with Terraform'
-            steps:
-            - task: UseDotNet@2
-            displayName: 'Use .NET Core sdk'
-            inputs:
-                packageType: 'sdk'
-                version: '3.1.x'
-
-            - checkout: self
-
-            - script: |
-                cd $(terraformPath)
-                terraform init -backend-config="storage_account_name=$(terraformBackendStorageAccount)" -backend-config="container_name=$(terraformBackendContainer)" -backend-config="key=$(terraformBackendKey)"
-                terraform apply -auto-approve
-            displayName: 'Terraform Apply'
-
-        - stage: KubernetesDeployment
-        dependsOn: TerraformProvisioning
-        jobs:
-        - job: DeployServices
-            displayName: 'Deploy Containerized Services with Kubernetes'
-            steps:
-            - task: UseDotNet@2
-            displayName: 'Use .NET Core sdk'
-            inputs:
-                packageType: 'sdk'
-                version: '3.1.x'
-
-            - checkout: self
-
-            - script: |
-                # Use kubectl to apply Kubernetes manifests for your web site and monitoring solution
-                # Update the paths based on your project structure
-                kubectl apply -f terraform/web-site-deployment.yaml
-                kubectl apply -f terraform/monitoring-solution-deployment.yaml
-            displayName: 'Deploy Services with Kubernetes'
-
-            # Add additional steps for testing, monitoring, etc.
-
-        - stage: TerraformDestroy
-        dependsOn: KubernetesDeployment
-        jobs:
-        - job: DestroyEC2
-            displayName: 'Destroy EC2 with Terraform'
-            steps:
-            - task: UseDotNet@2
-            displayName: 'Use .NET Core sdk'
-            inputs:
-                packageType: 'sdk'
-                version: '3.1.x'
-
-            - checkout: self
-
-            - script: |
-                cd $(terraformPath)
-                terraform destroy -auto-approve
-            displayName: 'Terraform Destroy'
-
-    terraform/: Contains Terraform scripts.
-    kubernetes/: Contains Kubernetes manifest files.
-    Kubernetes Manifests
-        web-site-deployment.yaml:
-
-        apiVersion: apps/v1
-        kind: Deployment
-        metadata:
-        name: web-site
-        spec:
-        replicas: 3
-        selector:
-            matchLabels:
-            app: web-site
-        template:
-            metadata:
-            labels:
-                app: web-site
-            spec:
-            containers:
-            - name: web-site-container
-                image: my-web-site-image:latest
-                ports:
-                - containerPort: 80
-
-        monitoring-solution-deployment.yaml:
-
-        apiVersion: apps/v1
-        kind: Deployment
-        metadata:
-        name: monitoring-solution
-        spec:
-        replicas: 1
-        selector:
-            matchLabels:
-            app: monitoring-solution
-        template:
-            metadata:
-            labels:
-                app: monitoring-solution
-            spec:
-            containers:
-            - name: monitoring-solution-container
-                image: my-monitoring-solution-image:latest
-                ports:
-                - containerPort: 8080
-
-## Azure DevOps Pipeline YAML
-    Created Azure DevOps Pipeline YAML section above for a complete YAML template. 
-    Customize it based on your project structure and requirements.
-
-## Usage
-    Fork or clone the repository.
-    Configure Azure DevOps with your project.
-    Update Terraform and Kubernetes configurations.
-    Run the CI/CD pipeline in Azure DevOps.
-    Contributing
-    Contributions are welcome! Follow the guidelines in the Contributing file.
-
-## License
-    This project is licensed under the MIT License. 
-    Feel free to use, modify, and distribute as per the terms of the license.
+        For more detailed guidance and troubleshooting, refer to Azure and Kubernetes documentation, 
+        or reach out to the community forums for specific issues encountered during the deployment process.
